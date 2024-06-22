@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity >=0.8.26;
 
 import "./StreamCreator.sol";
 import "./StreamManager.sol";
 
-contract PatreonWeb3 {
+contract Rapira {
     struct Subscription {
         address subscriber;
         address publisher;
