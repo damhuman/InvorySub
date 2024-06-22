@@ -10,8 +10,22 @@ struct PublisherData {
         data.addr = addr;
     }
 
+    function getTierPrice(uint16 tier) public view returns (uint256) {
+        return content.tier_prices[tier];
+    }
+
     address addr;
     Content content;
+}
+
+struct SubscriberData {
+    constructor(address addr) {
+        data.addr = addr;
+    }
+
+    mapping(address => uint) public publisherTiers;
+
+    address addr;
 }
 
 contract Publisher {
