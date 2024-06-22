@@ -13,7 +13,9 @@ contract StreamManagement {
         sablier.withdrawMax({ streamId: streamId, to: recipient });
     }
 
-    function cancel(uint256 streamId) external {
+    function cancel(uint256 streamId) external returns (uint256) {
+        uint128 refundableAmount = sablier.refundableAmountOf(streamId);
         sablier.cancel(streamId);
+        return refundableAmount;
     }
 }

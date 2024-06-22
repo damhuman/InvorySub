@@ -1,45 +1,41 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-contract PatreonWeb3 {
-    struct Tier {
-        uint256 price;
-        string contentHash; // IPFS hash or other content identifier
-    }
+import "./StreamCreator.sol";
+import "./StreamManager.sol";
 
+contract PatreonWeb3 {
     struct Subscription {
         address subscriber;
         address publisher;
-        uint256 tierId;
+        uint256 tierIndex;
         uint256 expirationTime;
+        uint256 streamId;
     }
 
-    mapping(address => mapping(uint256 => Tier)) public publisherTiers;
+    mapping(address => uint256[]) public publisherTiers;
     mapping(address => uint256) public balances;
     Subscription[] public subscriptions;
 
-    event TierCreated(address indexed publisher, uint256 indexed tierId, uint256 price, string contentHash);
-    event Subscribed(address indexed subscriber, address indexed publisher, uint256 indexed tierId, uint256 expirationTime);
-    event SubscriptionProlonged(address indexed subscriber, address indexed publisher, uint256 indexed tierId, uint256 newExpirationTime);
-    event SubscriptionCancelled(address indexed subscriber, address indexed publisher, uint256 indexed tierId);
-    event TierUpgraded(address indexed subscriber, address indexed publisher, uint256 oldTierId, uint256 newTierId);
+    StreamCreator public streamCreator;
+    StreamManager public streamManager;
 
-    // Third-party functions (stub implementations)
-    function initiate(uint128 amount_per_month, uint128 count_of_months, address recipient_addr) external {
-        // Call third-party initiate function
+    event TierCreated(address indexed publisher, uint256 indexed tierIndex, uint256 price);
+    event Subscribed(address indexed subscriber, address indexed publisher, uint256 indexed tierIndex, uint256 expirationTime, uint256 streamId);
+    event SubscriptionProlonged(address indexed subscriber, address indexed publisher, uint256 indexed tierIndex, uint256 newExpirationTime);
+    event SubscriptionCancelled(address indexed subscriber, address indexed publisher);
+    event TierUpgraded(address indexed subscriber, address indexed publisher, uint256 newTierIndex);
+
+    constructor() {
+        streamCreator = StreamCreator();
+        streamManager = StreamManager();
     }
 
-    function cancel(address recipient_addr) external {
-        // Call third-party cancel function
-    }
-
-    function createTier(uint256 _tierId, uint256 _price, string memory _contentHash) external {
-        publisherTiers[msg.sender][_tierId] = Tier({
-            price: _price,
-            contentHash: _contentHash
-        });
-
-        emit TierCreated(msg.sender, _tierId, _price, _contentHash);
+    function createTiers(uint256[] memory _prices) external {
+        for (uint256 i = 0; i < _prices.length; i++) {
+            publisherTiers[msg.sender].push(_prices[i]);
+        }
+        emit TiersCreated(msg.sender, _prices);
     }
 
     function deposit() external payable {
@@ -52,62 +48,89 @@ contract PatreonWeb3 {
         payable(msg.sender).transfer(_amount);
     }
 
-    function subscribe(address _publisher, uint256 _tierId, uint256 _startTime, uint256 _months) external {
-        Tier memory tier = publisherTiers[_publisher][_tierId];
-        require(tier.price > 0, "Tier does not exist");
-        uint256 totalCost = tier.price * _months;
+    function subscribe(address _publisher, uint256 _tierIndex, uint256 _months) external {
+        require(_tierIndex < publisherTiers[_publisher].length, "Tier does not exist");
+        uint256 price = publisherTiers[_publisher][_tierIndex];
+        uint256 totalCost = price * _months;
         require(balances[msg.sender] >= totalCost, "Insufficient balance");
 
         balances[msg.sender] -= totalCost;
 
+        uint256 streamId = streamCreator.createStream(uint128(price), uint128(_months), _publisher);
+
         Subscription memory newSubscription = Subscription({
             subscriber: msg.sender,
             publisher: _publisher,
-            tierId: _tierId,
-            expirationTime: _startTime + (_months * 30 days)
+            tierIndex: _tierIndex,
+            expirationTime: block.timestamp + (_months * 30 days),
+            streamId: streamId
         });
 
         subscriptions.push(newSubscription);
 
-        initiate(uint128(tier.price), uint128(_months), _publisher);
-
-        emit Subscribed(msg.sender, _publisher, _tierId, newSubscription.expirationTime);
+        emit Subscribed(msg.sender, _publisher, _tierIndex, newSubscription.expirationTime, streamId);
     }
 
-    function prolongSubscription(address _publisher, uint256 _tierId, uint256 _months) external {
+    function prolongSubscription(address _publisher, uint256 _months) external {
         for (uint256 i = 0; i < subscriptions.length; i++) {
-            if (subscriptions[i].subscriber == msg.sender && subscriptions[i].publisher == _publisher && subscriptions[i].tierId == _tierId) {
-                uint256 additionalCost = publisherTiers[_publisher][_tierId].price * _months;
+            if (subscriptions[i].subscriber == msg.sender && subscriptions[i].publisher == _publisher) {
+                uint256 _tierIndex = subscriptions[i].tierIndex;
+                uint256 price = publisherTiers[_publisher][_tierIndex];
+                uint256 additionalCost = price * _months;
                 require(balances[msg.sender] >= additionalCost, "Insufficient balance");
 
                 balances[msg.sender] -= additionalCost;
                 subscriptions[i].expirationTime += _months * 30 days;
 
-                initiate(uint128(publisherTiers[_publisher][_tierId].price), uint128(_months), _publisher);
+                streamCreator.createStream(uint128(price), uint128(_months), _publisher);
 
-                emit SubscriptionProlonged(msg.sender, _publisher, _tierId, subscriptions[i].expirationTime);
+                emit SubscriptionProlonged(msg.sender, _publisher, _tierIndex, subscriptions[i].expirationTime);
                 return;
             }
         }
         revert("Subscription not found");
     }
 
-    function cancelSubscription(address _publisher, uint256 _tierId) external {
+    function prolongSubscription(address _publisher, uint256 _months) external {
         for (uint256 i = 0; i < subscriptions.length; i++) {
-            if (subscriptions[i].subscriber == msg.sender && subscriptions[i].publisher == _publisher && subscriptions[i].tierId == _tierId) {
-                cancel(_publisher);
-                delete subscriptions[i];
-                emit SubscriptionCancelled(msg.sender, _publisher, _tierId);
+            if (subscriptions[i].subscriber == msg.sender && subscriptions[i].publisher == _publisher) {
+                uint256 remainingTime = subscriptions[i].expirationTime > block.timestamp ? subscriptions[i].expirationTime - block.timestamp : 0;
+                uint256 remainingMonths = remainingTime / 30 days;
+                uint256 totalMonths = remainingMonths + _months;
+
+                uint256 _tierIndex = subscriptions[i].tierIndex;
+
+                cancelSubscription(_publisher);
+                subscribe(_publisher, _tierIndex, totalMonths);
+
                 return;
             }
         }
         revert("Subscription not found");
     }
 
-    function upgradeTier(address _publisher, uint256 _oldTierId, uint256 _newTierId, uint256 _months) external {
-        cancelSubscription(_publisher, _oldTierId);
-        subscribe(_publisher, _newTierId, block.timestamp, _months);
-        emit TierUpgraded(msg.sender, _publisher, _oldTierId, _newTierId);
+    function cancelSubscription(address _publisher) external {
+        for (uint256 i = 0; i < subscriptions.length; i++) {
+            if (subscriptions[i].subscriber == msg.sender && subscriptions[i].publisher == _publisher) {
+                uint256 streamId = subscriptions[i].streamId;
+                uint256 refundedAmount = streamManager.cancel(streamId);
+                balances[msg.sender] += refundedAmount;
+                delete subscriptions[i];
+                emit SubscriptionCancelled(msg.sender, _publisher);
+                return;
+            }
+        }
+        revert("Subscription not found");
+    }
+
+    function upgradeTier(address _publisher, uint256 _newTierIndex, uint256 _months) external {
+        cancelSubscription(_publisher);
+        subscribe(_publisher, _newTierIndex, block.timestamp, _months);
+        emit TierUpgraded(msg.sender, _publisher, _newTierIndex);
+    }
+
+    function withdrawMaxForPublisher(uint256 streamId, address recipient) external {
+        streamManager.withdrawMax(streamId, recipient);
     }
 
     function getAllSubscriptions() external view returns (Subscription[] memory) {
@@ -154,13 +177,17 @@ contract PatreonWeb3 {
         return result;
     }
 
-    function getTierContent(address _publisher, uint256 _tierId) external view returns (string memory) {
+    function getTierPrice(address _publisher, uint256 _tierIndex) external view returns (uint256) {
+        require(_tierIndex < publisherTiers[_publisher].length, "Tier does not exist");
+        return publisherTiers[_publisher][_tierIndex];
+    }
+
+    function getSubscriberTier(address _subscriber, address _publisher) external view returns (int256) {
         for (uint256 i = 0; i < subscriptions.length; i++) {
-            if (subscriptions[i].subscriber == msg.sender && subscriptions[i].publisher == _publisher && subscriptions[i].tierId == _tierId) {
-                require(subscriptions[i].expirationTime > block.timestamp, "Subscription expired");
-                return publisherTiers[_publisher][_tierId].contentHash;
+            if (subscriptions[i].subscriber == _subscriber && subscriptions[i].publisher == _publisher) {
+                return int256(subscriptions[i].tierIndex);
             }
         }
-        revert("Not subscribed to this tier");
+        return -1;
     }
 }
