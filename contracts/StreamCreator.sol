@@ -27,12 +27,14 @@ contract StreamCreator {
         params.transferable = false;
         params.broker = Broker(address(0), ud60x18(0));
 
-        params.segments = new LockupDynamic.Segment[](count_of_months);
+        params.segments = new LockupDynamic.SegmentWithDelta[](count_of_months);
+
+        uint256 oneMonthInSeconds = 30 * 86400;
         for (uint256 i = 0; i < count_of_months; i++) {
-            params.segments[i] = LockupDynamic.Segment({
+            params.segments[i] = LockupDynamic.SegmentWithDelta({
                 amount: amount_per_month,
                 exponent: ud2x18(1e18),
-                milestone: uint40(block.timestamp + i * 4 weeks)
+                delta: uint40(oneMonthInSeconds)
             });
         }
 

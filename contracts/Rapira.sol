@@ -20,22 +20,20 @@ contract Rapira {
     StreamCreator public streamCreator;
     StreamManager public streamManager;
 
-    event TierCreated(address indexed publisher, uint256 indexed tierIndex, uint256 price);
     event Subscribed(address indexed subscriber, address indexed publisher, uint256 indexed tierIndex, uint256 expirationTime, uint256 streamId);
     event SubscriptionProlonged(address indexed subscriber, address indexed publisher, uint256 indexed tierIndex, uint256 newExpirationTime);
     event SubscriptionCancelled(address indexed subscriber, address indexed publisher);
     event TierUpgraded(address indexed subscriber, address indexed publisher, uint256 newTierIndex);
 
-    constructor() {
-        streamCreator = StreamCreator();
-        streamManager = StreamManager();
+    constructor(address _streamCreator, address _streamManager) {
+        streamCreator = StreamCreator(_streamCreator);
+        streamManager = StreamManager(_streamManager);
     }
 
     function createTiers(uint256[] memory _prices) external {
         for (uint256 i = 0; i < _prices.length; i++) {
             publisherTiers[msg.sender].push(_prices[i]);
         }
-        emit TiersCreated(msg.sender, _prices);
     }
 
     function deposit() external payable {
@@ -48,18 +46,18 @@ contract Rapira {
         payable(msg.sender).transfer(_amount);
     }
 
-    function subscribe(address _publisher, uint256 _tierIndex, uint256 _months) external {
+    function _subscribe(address _subscriber, address _publisher, uint256 _tierIndex, uint256 _months) internal {
         require(_tierIndex < publisherTiers[_publisher].length, "Tier does not exist");
         uint256 price = publisherTiers[_publisher][_tierIndex];
         uint256 totalCost = price * _months;
-        require(balances[msg.sender] >= totalCost, "Insufficient balance");
+        require(balances[_subscriber] >= totalCost, "Insufficient balance");
 
-        balances[msg.sender] -= totalCost;
+        balances[_subscriber] -= totalCost;
 
         uint256 streamId = streamCreator.createStream(uint128(price), uint128(_months), _publisher);
 
         Subscription memory newSubscription = Subscription({
-            subscriber: msg.sender,
+            subscriber: _subscriber,
             publisher: _publisher,
             tierIndex: _tierIndex,
             expirationTime: block.timestamp + (_months * 30 days),
@@ -68,27 +66,35 @@ contract Rapira {
 
         subscriptions.push(newSubscription);
 
-        emit Subscribed(msg.sender, _publisher, _tierIndex, newSubscription.expirationTime, streamId);
+        emit Subscribed(_subscriber, _publisher, _tierIndex, newSubscription.expirationTime, streamId);
     }
 
-    function prolongSubscription(address _publisher, uint256 _months) external {
+    function subscribe(address _publisher, uint256 _tierIndex, uint256 _months) external {
+        _subscribe(msg.sender, _publisher, _tierIndex, _months);
+    }
+
+    function _cancelSubscription(address _subscriber, address _publisher) internal {
         for (uint256 i = 0; i < subscriptions.length; i++) {
-            if (subscriptions[i].subscriber == msg.sender && subscriptions[i].publisher == _publisher) {
-                uint256 _tierIndex = subscriptions[i].tierIndex;
-                uint256 price = publisherTiers[_publisher][_tierIndex];
-                uint256 additionalCost = price * _months;
-                require(balances[msg.sender] >= additionalCost, "Insufficient balance");
-
-                balances[msg.sender] -= additionalCost;
-                subscriptions[i].expirationTime += _months * 30 days;
-
-                streamCreator.createStream(uint128(price), uint128(_months), _publisher);
-
-                emit SubscriptionProlonged(msg.sender, _publisher, _tierIndex, subscriptions[i].expirationTime);
+            if (subscriptions[i].subscriber == _subscriber && subscriptions[i].publisher == _publisher) {
+                uint256 streamId = subscriptions[i].streamId;
+                uint256 refundedAmount = streamManager.cancel(streamId);
+                balances[_subscriber] += refundedAmount;
+                delete subscriptions[i];
+                emit SubscriptionCancelled(_subscriber, _publisher);
                 return;
             }
         }
         revert("Subscription not found");
+    }
+
+    function cancelSubscription(address _publisher) external {
+        _cancelSubscription(msg.sender, _publisher);
+    }
+
+    function upgradeTier(address _publisher, uint256 _newTierIndex, uint256 _months) external {
+        _cancelSubscription(msg.sender, _publisher);
+        _subscribe(msg.sender, _publisher, _newTierIndex, _months);
+        emit TierUpgraded(msg.sender, _publisher, _newTierIndex);
     }
 
     function prolongSubscription(address _publisher, uint256 _months) external {
@@ -100,8 +106,8 @@ contract Rapira {
 
                 uint256 _tierIndex = subscriptions[i].tierIndex;
 
-                cancelSubscription(_publisher);
-                subscribe(_publisher, _tierIndex, totalMonths);
+                _cancelSubscription(msg.sender, _publisher);
+                _subscribe(msg.sender, _publisher, _tierIndex, totalMonths);
 
                 return;
             }
@@ -109,28 +115,16 @@ contract Rapira {
         revert("Subscription not found");
     }
 
-    function cancelSubscription(address _publisher) external {
-        for (uint256 i = 0; i < subscriptions.length; i++) {
-            if (subscriptions[i].subscriber == msg.sender && subscriptions[i].publisher == _publisher) {
-                uint256 streamId = subscriptions[i].streamId;
-                uint256 refundedAmount = streamManager.cancel(streamId);
-                balances[msg.sender] += refundedAmount;
-                delete subscriptions[i];
-                emit SubscriptionCancelled(msg.sender, _publisher);
-                return;
-            }
-        }
-        revert("Subscription not found");
-    }
-
-    function upgradeTier(address _publisher, uint256 _newTierIndex, uint256 _months) external {
-        cancelSubscription(_publisher);
-        subscribe(_publisher, _newTierIndex, block.timestamp, _months);
-        emit TierUpgraded(msg.sender, _publisher, _newTierIndex);
-    }
-
-    function withdrawMaxForPublisher(uint256 streamId, address recipient) external {
+    function withdrawMaxForPublisher(uint256 streamId, address recipient) private {
         streamManager.withdrawMax(streamId, recipient);
+    }
+
+    function withdrawForPublisher() external {
+        for (uint256 i = 0; i < subscriptions.length; i++) {
+            if (subscriptions[i].publisher == msg.sender) {
+                streamManager.withdrawMax(subscriptions[i].streamId, msg.sender);
+            }
+        }
     }
 
     function getAllSubscriptions() external view returns (Subscription[] memory) {
