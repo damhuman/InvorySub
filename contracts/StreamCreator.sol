@@ -30,11 +30,12 @@ contract StreamCreator {
         params.segments = new LockupDynamic.SegmentWithDelta[](count_of_months);
 
         uint256 oneMonthInSeconds = 30 * 86400;
+        uint256 twoMinutes = 120;
         for (uint256 i = 0; i < count_of_months; i++) {
             params.segments[i] = LockupDynamic.SegmentWithDelta({
                 amount: amount_per_month,
                 exponent: ud2x18(1e18),
-                delta: uint40(oneMonthInSeconds)
+                delta: uint40(twoMinutes)
             });
         }
 
