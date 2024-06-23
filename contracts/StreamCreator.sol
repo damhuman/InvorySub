@@ -7,7 +7,7 @@ import { ud60x18 } from "@prb/math/src/UD60x18.sol";
 import { ISablierV2LockupDynamic } from "@sablier/v2-core/src/interfaces/ISablierV2LockupDynamic.sol";
 import { Broker, LockupDynamic } from "@sablier/v2-core/src/types/DataTypes.sol";
 
-contract LockupLinearStreamCreator {
+contract StreamCreator {
     IERC20 public constant SETH = IERC20(0xd38E5c25935291fFD51C9d66C3B7384494bb099A);
     ISablierV2LockupDynamic public constant LOCKUP_DYNAMIC =
         ISablierV2LockupDynamic(0xc9940AD8F43aAD8e8f33A4D5dbBf0a8F7FF4429A);
