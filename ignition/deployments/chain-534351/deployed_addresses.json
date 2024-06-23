@@ -1,3 +1,5 @@
 {
-  "LockModule#Lock": "0xF00C1233f474e29DdE6aFE2451F17caf79Ad5Fda"
+  "LockModule#Lock": "0xF00C1233f474e29DdE6aFE2451F17caf79Ad5Fda",
+  "StreamCreatorModule#StreamCreator": "0x983A75981448902CB197667a30Ae46cF327829B3",
+  "StreamManagerModule#StreamManager": "0xf5c24C2fe4a3983cc669F614706462f76ba55071"
 }
