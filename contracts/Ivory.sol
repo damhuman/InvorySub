@@ -5,7 +5,7 @@ import "./StreamCreator.sol";
 import "./StreamManager.sol";
 import { IWETH } from "./IWETH.sol";
 
-contract Rapira {
+contract Ivory {
     struct Subscription {
         address subscriber;
         address publisher;
