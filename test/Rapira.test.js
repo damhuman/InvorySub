@@ -14,40 +14,37 @@ describe("Rapira", function () {
     streamManager = await StreamManagerFactory.deploy();
     await streamManager.waitForDeployment()
     streamManagerAddress = streamManager.target;
-    console.log(streamManagerAddress);
+    // console.log(streamManagerAddress);
 
     const StreamCreatorFactory = await ethers.getContractFactory("StreamCreator");
     streamCreator = await StreamCreatorFactory.deploy();
     await streamCreator.waitForDeployment()
     streamCreatorAddress = streamCreator.target;
-    console.log(streamCreatorAddress);
+    // console.log(streamCreatorAddress);
 
     // Deploy Rapira with the addresses of the deployed contracts
-    const RapiraFactory = await ethers.getContractFactory("Rapira");
-    console.log(RapiraFactory.bytecode);
-    console.log(RapiraFactory.interface);
-    console.log(RapiraFactory.runner);
+    const RapiraFactory = await ethers.getContractFactory("Ivory");
 
     rapira = await RapiraFactory.deploy(streamCreatorAddress, streamManagerAddress);
     await rapira.waitForDeployment()
     rapiraAddress = await rapira.getAddress();
-    console.log(rapiraAddress);
+    // console.log(rapiraAddress);
   });
 
   
-  it("Should deposit ETH and convert to WETH", async function () {
-    // const depositAmount = ethers.utils.parseEther("1");
-    // await rapira.connect(addr1).deposit({ value: depositAmount });
+  it("Should deposit_on_account ETH and convert to WETH", async function () {
+    const depositAmount = ethers.parseEther("1");
+    await rapira.connect(addr1).deposit_on_account({ value: depositAmount });
 
-    // const balance = await rapira.balances(addr1.address);
-    // expect(balance).to.equal(depositAmount);
+    const balance = await rapira.balances(addr1.address);
+    expect(balance).to.equal(depositAmount);
   });
-/*
-  it("Should withdraw WETH and convert to ETH", async function () {
-    const depositAmount = ethers.utils.parseEther("1");
-    await rapira.connect(addr1).deposit({ value: depositAmount });
 
-    const withdrawAmount = ethers.utils.parseEther("0.5");
+  it("Should withdraw WETH and convert to ETH", async function () {
+    const depositAmount = ethers.parseEther("1");
+    await rapira.connect(addr1).deposit_on_account({ value: depositAmount });
+
+    const withdrawAmount = ethers.parseEther("0.5");
     await rapira.connect(addr1).withdraw(withdrawAmount);
 
     const balance = await rapira.balances(addr1.address);
@@ -55,7 +52,7 @@ describe("Rapira", function () {
   });
 
   it("Should create a tier", async function () {
-    const prices = [ethers.utils.parseEther("1"), ethers.utils.parseEther("2")];
+    const prices = [ethers.parseEther("1"), ethers.parseEther("2")];
     await rapira.connect(addr1).createTiers(prices);
 
     const tierPrice1 = await rapira.getTierPrice(addr1.address, 0);
@@ -65,11 +62,11 @@ describe("Rapira", function () {
   });
 
   it("Should subscribe to a tier", async function () {
-    const prices = [ethers.utils.parseEther("1")];
+    const prices = [ethers.parseEther("1")];
     await rapira.connect(addr1).createTiers(prices);
 
-    const depositAmount = ethers.utils.parseEther("3");
-    await rapira.connect(addr2).deposit({ value: depositAmount });
+    const depositAmount = ethers.parseEther("3");
+    await rapira.connect(addr2).deposit_on_account({ value: depositAmount });
 
     await rapira.connect(addr2).subscribe(addr1.address, 0, 1);
 
@@ -79,11 +76,11 @@ describe("Rapira", function () {
   });
 
   it("Should cancel a subscription", async function () {
-    const prices = [ethers.utils.parseEther("1")];
+    const prices = [ethers.parseEther("1")];
     await rapira.connect(addr1).createTiers(prices);
 
-    const depositAmount = ethers.utils.parseEther("3");
-    await rapira.connect(addr2).deposit({ value: depositAmount });
+    const depositAmount = ethers.parseEther("3");
+    await rapira.connect(addr2).deposit_on_account({ value: depositAmount });
 
     await rapira.connect(addr2).subscribe(addr1.address, 0, 1);
 
@@ -94,11 +91,11 @@ describe("Rapira", function () {
   });
 
   it("Should upgrade a tier", async function () {
-    const prices = [ethers.utils.parseEther("1"), ethers.utils.parseEther("2")];
+    const prices = [ethers.parseEther("1"), ethers.parseEther("2")];
     await rapira.connect(addr1).createTiers(prices);
 
-    const depositAmount = ethers.utils.parseEther("5");
-    await rapira.connect(addr2).deposit({ value: depositAmount });
+    const depositAmount = ethers.parseEther("5");
+    await rapira.connect(addr2).deposit_on_account({ value: depositAmount });
 
     await rapira.connect(addr2).subscribe(addr1.address, 0, 1);
     await rapira.connect(addr2).upgradeTier(addr1.address, 1, 1);
@@ -109,11 +106,11 @@ describe("Rapira", function () {
   });
 
   it("Should prolong a subscription", async function () {
-    const prices = [ethers.utils.parseEther("1")];
+    const prices = [ethers.parseEther("1")];
     await rapira.connect(addr1).createTiers(prices);
 
-    const depositAmount = ethers.utils.parseEther("3");
-    await rapira.connect(addr2).deposit({ value: depositAmount });
+    const depositAmount = ethers.parseEther("3");
+    await rapira.connect(addr2).deposit_on_account({ value: depositAmount });
 
     await rapira.connect(addr2).subscribe(addr1.address, 0, 1);
     await rapira.connect(addr2).prolongSubscription(addr1.address, 1);
@@ -122,5 +119,5 @@ describe("Rapira", function () {
     expect(subscriptions.length).to.equal(1);
     expect(subscriptions[0].expirationTime).to.be.gt(Math.floor(Date.now() / 1000)); // Compare to current time
   });
-  */
+  
 });

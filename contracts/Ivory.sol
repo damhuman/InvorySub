@@ -3,7 +3,16 @@ pragma solidity >=0.8.26;
 
 import "./StreamCreator.sol";
 import "./StreamManager.sol";
-import { IWETH } from "./IWETH.sol";
+// import { IWETH } from "./IWETH.sol";
+
+interface IWETH is IERC20 {
+  receive() external payable;
+
+  function deposit() external payable;
+
+  function withdraw(uint256 wad) external;
+}
+
 
 contract Ivory {
     struct Subscription {
@@ -14,14 +23,16 @@ contract Ivory {
         uint256 streamId;
     }
 
-    IWETH public constant WETH = IWETH(0xfa6a407c4C49Ea1D46569c1A4Bcf71C3437bE54c);  // Mainnet WETH address
-
     mapping(address => uint256[]) public publisherTiers;
     mapping(address => uint256) public balances;
     Subscription[] public subscriptions;
 
     StreamCreator public streamCreator;
     StreamManager public streamManager;
+
+
+    address payable private constant WETH_ADDR = payable(0x5300000000000000000000000000000000000004);
+    IWETH public constant WETH = IWETH(WETH_ADDR);
 
     event Subscribed(address indexed subscriber, address indexed publisher, uint256 indexed tierIndex, uint256 expirationTime, uint256 streamId);
     event SubscriptionProlonged(address indexed subscriber, address indexed publisher, uint256 indexed tierIndex, uint256 newExpirationTime);
@@ -36,18 +47,22 @@ contract Ivory {
         streamManager = StreamManager(_streamManager);
     }
 
+    receive() external payable {}
+
     function createTiers(uint256[] memory _prices) external {
         for (uint256 i = 0; i < _prices.length; i++) {
             publisherTiers[msg.sender].push(_prices[i]);
         }
     }
 
-    function deposit() external payable {
+    function deposit_on_account() external payable {
         require(msg.value > 0, "Must send ETH to deposit");
-        WETH.deposit{value: msg.value}();
-        balances[msg.sender] += msg.value;
+        uint256 ETHAmount = msg.value;
+        WETH.deposit{ value: ETHAmount }();
+        WETH.transfer(msg.sender, ETHAmount);
+        balances[msg.sender] += ETHAmount;
 
-        emit Deposit(msg.sender, msg.value);
+        emit Deposit(msg.sender, ETHAmount);
     }
 
     // Withdraw by converting WETH to ETH
@@ -56,7 +71,8 @@ contract Ivory {
         balances[msg.sender] -= _amount;
 
         // Withdraw WETH and convert to ETH
-        WETH.withdraw(_amount);
+            WETH.transferFrom(msg.sender, address(this), _amount);
+            WETH.withdraw(_amount);
         payable(msg.sender).transfer(_amount);
 
         emit Withdrawal(msg.sender, _amount);

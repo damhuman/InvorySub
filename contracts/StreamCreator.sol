@@ -6,9 +6,21 @@ import { ud2x18 } from "@prb/math/src/UD2x18.sol";
 import { ud60x18 } from "@prb/math/src/UD60x18.sol";
 import { ISablierV2LockupDynamic } from "@sablier/v2-core/src/interfaces/ISablierV2LockupDynamic.sol";
 import { Broker, LockupDynamic } from "@sablier/v2-core/src/types/DataTypes.sol";
+// import { IWETH } from "./IWETH.sol";
+
+interface IWETH1 is IERC20 {
+  receive() external payable;
+
+  function deposit() external payable;
+
+  function withdraw(uint256 wad) external;
+}
+
 
 contract StreamCreator {
-    IERC20 public constant WETH = IERC20(0xfa6a407c4C49Ea1D46569c1A4Bcf71C3437bE54c);
+    address payable private constant WETH_ADDR = payable(0x5300000000000000000000000000000000000004);
+    IWETH1 public constant WETH = IWETH1(WETH_ADDR);
+
     ISablierV2LockupDynamic public constant LOCKUP_DYNAMIC =
         ISablierV2LockupDynamic(0xc9940AD8F43aAD8e8f33A4D5dbBf0a8F7FF4429A);
 
