@@ -1,4 +1,4 @@
-pragma solidity ^0.8.24;
+pragma solidity >=0.8.26;
 
 import { ISablierV2Lockup } from "@sablier/v2-core/src/interfaces/ISablierV2Lockup.sol";
 
