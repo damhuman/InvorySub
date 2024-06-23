@@ -8,21 +8,21 @@ import { ISablierV2LockupDynamic } from "@sablier/v2-core/src/interfaces/ISablie
 import { Broker, LockupDynamic } from "@sablier/v2-core/src/types/DataTypes.sol";
 
 contract StreamCreator {
-    IERC20 public constant SETH = IERC20(0xd38E5c25935291fFD51C9d66C3B7384494bb099A);
+    IERC20 public constant WETH = IERC20(0xfa6a407c4C49Ea1D46569c1A4Bcf71C3437bE54c);
     ISablierV2LockupDynamic public constant LOCKUP_DYNAMIC =
         ISablierV2LockupDynamic(0xc9940AD8F43aAD8e8f33A4D5dbBf0a8F7FF4429A);
 
     function createStream(uint128 amount_per_month, uint128 count_of_months, address recipient_addr) public returns (uint256 streamId) {
         uint256 totalAmount = amount_per_month * count_of_months;
-        SETH.transferFrom(msg.sender, address(this), totalAmount);
-        SETH.approve(address(LOCKUP_DYNAMIC), totalAmount);
+        WETH.transferFrom(msg.sender, address(this), totalAmount);
+        WETH.approve(address(LOCKUP_DYNAMIC), totalAmount);
 
         LockupDynamic.CreateWithDeltas memory params;
 
         params.sender = msg.sender;
         params.recipient = recipient_addr;
         params.totalAmount = uint128(totalAmount);
-        params.asset = SETH;
+        params.asset = WETH;
         params.cancelable = true;
         params.transferable = false;
         params.broker = Broker(address(0), ud60x18(0));

@@ -3,6 +3,7 @@ pragma solidity >=0.8.26;
 
 import "./StreamCreator.sol";
 import "./StreamManager.sol";
+import { IWETH } from "./IWETH.sol";
 
 contract Rapira {
     struct Subscription {
@@ -12,6 +13,8 @@ contract Rapira {
         uint256 expirationTime;
         uint256 streamId;
     }
+
+    IWETH public constant WETH = IWETH(0xfa6a407c4C49Ea1D46569c1A4Bcf71C3437bE54c);  // Mainnet WETH address
 
     mapping(address => uint256[]) public publisherTiers;
     mapping(address => uint256) public balances;
@@ -25,6 +28,9 @@ contract Rapira {
     event SubscriptionCancelled(address indexed subscriber, address indexed publisher);
     event TierUpgraded(address indexed subscriber, address indexed publisher, uint256 newTierIndex);
 
+    event Deposit(address indexed user, uint256 amount);
+    event Withdrawal(address indexed user, uint256 amount);
+
     constructor(address _streamCreator, address _streamManager) {
         streamCreator = StreamCreator(_streamCreator);
         streamManager = StreamManager(_streamManager);
@@ -37,14 +43,28 @@ contract Rapira {
     }
 
     function deposit() external payable {
+        require(msg.value > 0, "Must send ETH to deposit");
+        WETH.deposit{value: msg.value}();
         balances[msg.sender] += msg.value;
+
+        emit Deposit(msg.sender, msg.value);
     }
 
+    // Withdraw by converting WETH to ETH
     function withdraw(uint256 _amount) external {
         require(balances[msg.sender] >= _amount, "Insufficient balance");
         balances[msg.sender] -= _amount;
+
+        // Withdraw WETH and convert to ETH
+        WETH.withdraw(_amount);
         payable(msg.sender).transfer(_amount);
+
+        emit Withdrawal(msg.sender, _amount);
     }
+
+    // receive() external payable {
+    //     deposit();
+    // }
 
     function _subscribe(address _subscriber, address _publisher, uint256 _tierIndex, uint256 _months) internal {
         require(_tierIndex < publisherTiers[_publisher].length, "Tier does not exist");
