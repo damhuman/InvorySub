@@ -1,33 +1,22 @@
-// scripts/deploy.ts
-import { ethers } from "hardhat";
+import hre from "hardhat";
+import StreamManagerModule from "../ignition/modules/StreamManager";
+import StreamCreatorModule from "../ignition/modules/StreamCreator";
+import IvoryModule from "../ignition/modules/Ivory";
 
 async function main() {
-  const [deployer] = await ethers.getSigners();
-  console.log("Deploying contracts with the account:", deployer.address);
 
-  // Deploy StreamManager
-  const StreamManager = await ethers.getContractFactory("StreamManager");
-  const streamManager = await StreamManager.deploy();
-  await streamManager.deployed();
-  console.log("StreamManager deployed to:", streamManager.address);
+  const { streamManager } = await hre.ignition.deploy(StreamManagerModule);
+  const managerAddress = await streamManager.getAddress();
+  console.log(`StreamManager deployed to: ${managerAddress}`);
 
-  // Deploy StreamCreator
-  const StreamCreator = await ethers.getContractFactory("StreamCreator");
-  const streamCreator = await StreamCreator.deploy();
-  await streamCreator.deployed();
-  console.log("StreamCreator deployed to:", streamCreator.address);
+  const { streamCreator } = await hre.ignition.deploy(StreamCreatorModule);  
+  const creatorAddress = await streamCreator.getAddress();
+  console.log(`StreamCreator deployed to: ${creatorAddress}`);
 
-  // Deploy IWETH (assuming it's a mock contract for testing purposes)
-  const IWETH = await ethers.getContractFactory("IWETH");
-  const iWETH = await IWETH.deploy();
-  await iWETH.deployed();
-  console.log("IWETH deployed to:", iWETH.address);
-
-  // Deploy Ivory and pass the addresses of StreamManager and StreamCreator
-  const Ivory = await ethers.getContractFactory("Ivory");
-  const ivory = await Ivory.deploy(streamCreator.address, streamManager.address);
-  await ivory.deployed();
-  console.log("Ivory deployed to:", ivory.address);
+  const { ivory } = await hre.ignition.deploy(IvoryModule, {
+    parameters: { IvoryModule: {creatorAddress, managerAddress} }
+  });
+  console.log(`Ivory deployed to: ${await ivory.getAddress()}`);
 }
 
 main()
